@@ -33,12 +33,31 @@ const ProductDetails = () => {
   const userId = localStorage.getItem("Id");
 
 
-const socket = io('http://localhost:5000');
+
+const socketRef = React.useRef();
+
+useEffect(() => {
+ 
+  socketRef.current = io('http://localhost:5000');
+
+  socketRef.current.on('receiveMessage', (message) => {
+    if (
+      (message.senderId === product?.sellerId && message.receiverId === userId && message.productId === id) ||
+      (message.senderId === userId && message.receiverId === product?.sellerId && message.productId === id)
+    ) {
+      setMessages((prev) => [...prev, message]);
+    }
+  });
+
+  return () => {
+    socketRef.current.disconnect();
+  };
+}, []);
 
 useEffect(() => {
   const fetchMessages = async () => {
     try {
-      const { data } = await axios.get(`http://localhost:5000/api/messages/${userId}/${product.sellerId}/${id}`);
+      const { data } = await axios.get(`http://localhost:5000/api/messages/${userId}/${product?.sellerId}/${id}`);
       setMessages(data);
     } catch (err) {
       console.error('Error fetching messages:', err);
@@ -48,21 +67,6 @@ useEffect(() => {
   if (product && userId) {
     fetchMessages();
   }
-
-  
-  socket.on('receiveMessage', (message) => {
- 
-    if (
-      (message.senderId === product.sellerId && message.receiverId === userId && message.productId === id) ||
-      (message.senderId === userId && message.receiverId === product.sellerId && message.productId === id)
-    ) {
-      setMessages((prev) => [...prev, message]);
-    }
-  });
-
-  return () => {
-    socket.off('receiveMessage');
-  };
 }, [product, id, userId]);
 
 const handleSendMessage = async () => {
@@ -76,7 +80,7 @@ const handleSendMessage = async () => {
   };
 
   try {
-    socket.emit('sendMessage', messageData);
+    socketRef.current.emit('sendMessage', messageData);
     const { data } = await axios.post('http://localhost:5000/api/messages', messageData);
     setMessages((prev) => [...prev, data]);
     setNewMessage('');
